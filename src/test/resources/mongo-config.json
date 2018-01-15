@@ -1,0 +1,11 @@
+{
+    "storage": {
+        "type": "mongo",
+        "mongo": {
+            "host": "localhost",
+            "db": "redbox-int-test",
+            "port": 37017,
+            "payload_backend": "GRIDFS"
+        }
+    }
+}
