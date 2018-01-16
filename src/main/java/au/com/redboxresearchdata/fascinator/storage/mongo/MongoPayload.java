@@ -19,6 +19,8 @@ package au.com.redboxresearchdata.fascinator.storage.mongo;
 
 import java.io.InputStream;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -60,32 +62,57 @@ public class MongoPayload extends GenericPayload {
         this.pid = pid;
         this.backend = backend;
         payloadPath = obj.oid + "/" + pid;
-        if (fileId != null
-                && backend.equals(JsonDigitalObject.PayloadBackend.GRIDFS)) {
-            mongoFileId = new ObjectId(fileId);
+        setLabel(pid);
+        // call this because of the flag that's set with the setLabel call
+        setMetaChanged(false);
+        if (fileId != null) {
+            if (backend.equals(JsonDigitalObject.PayloadBackend.GRIDFS)) {
+                mongoFileId = new ObjectId(fileId);
+            }
+            List<Map<String, Object>> files = obj.getFileList();
+            if (files != null) {
+                for (Map<String, Object> fileInfo : files) {
+                    if (pid.equals(fileInfo.get("pid"))) {
+                        setMetadataDoc(new Document(fileInfo));
+                    }
+                }
+            }
         }
     }
 
-    private Document getMetadataDoc() {
+    public Map<String, Object> getMetadataDoc() {
         Document doc = new Document();
         doc.append("pid", getId());
         doc.append("linked", isLinked());
         doc.append("label", getLabel());
         doc.append("payloadType", getType().toString());
         doc.append("oid", obj.oid);
+        doc.append("contentType", getContentType());
+        doc.append("backend", backend.toString());
+        doc.append("fileId", getFileIdAsString());
+        doc.append("lastModified", lastModified);
         return doc;
     }
 
-    private void setMetadataDoc(Document doc) {
+    private Document getMetadataDocLocal() {
+        Document doc = new Document();
+        doc.append("pid", getId());
+        doc.append("oid", obj.oid);
+        doc.append("contentType", getContentType());
+        return doc;
+    }
+
+    public void setMetadataDoc(Document doc) {
         setId(doc.getString("pid"));
         setLinked(doc.getBoolean("linked", false));
         setLabel(doc.getString("label"));
         setType(PayloadType.valueOf(doc.getString("payloadType")));
+        setContentType(doc.getString("contentType"));
+        lastModified = doc.getDate("lastModified");
     }
 
     private Date getLastModified() {
-        return ((Document) obj.getObjectMetadata())
-                .getDate("attachments." + pid + ".lastModified");
+        return lastModified;
     }
 
     /**
@@ -98,7 +125,7 @@ public class MongoPayload extends GenericPayload {
         lastModified = new Date();
 
         GridFSUploadOptions options = new GridFSUploadOptions()
-                .metadata(getMetadataDoc());
+                .metadata(getMetadataDocLocal());
         mongoFileId = getBucket().uploadFromStream(payloadPath, source,
                 options);
     }
@@ -109,21 +136,27 @@ public class MongoPayload extends GenericPayload {
 
     @Override
     public InputStream open() throws StorageException {
-        ds = getBucket().openDownloadStream(payloadPath);
-        setInputStream(ds);
+        ds = getBucket().openDownloadStream(mongoFileId);
+
         GridFSFile file = ds.getGridFSFile();
         mongoFileId = file.getObjectId();
-        setMetadataDoc(file.getMetadata());
+        // setMetadataDoc(file.getMetadata());
         return ds;
     }
 
     @Override
     public void close() throws StorageException {
-        super.close();
+        if (hasMetaChanged()) {
+            lastModified = new Date();
+            obj.updatePayloadMeta(this);
+        }
     }
 
     @Override
     public Long size() {
+        if (ds == null) {
+            ds = getBucket().openDownloadStream(mongoFileId);
+        }
         return ds.getGridFSFile().getLength();
     }
 
@@ -138,6 +171,14 @@ public class MongoPayload extends GenericPayload {
 
     public void remove() {
         getBucket().delete(mongoFileId);
+        ds = null;
+        mongoFileId = null;
+        lastModified = null;
+    }
+
+    public void update(InputStream source) {
+        remove();
+        create(source);
     }
 
 }

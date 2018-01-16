@@ -21,15 +21,16 @@ import static com.mongodb.client.model.Filters.eq;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import org.apache.tika.Tika;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,14 +144,16 @@ public class MongoDigitalObject extends GenericDigitalObject
         // populate from the metadata
         Map<String, Payload> manifest = super.getManifest();
         if (manifest.isEmpty()) {
-            List<Map<String, String>> payloads = getFileList();
+            List<Map<String, Object>> payloads = getFileList();
             if (payloads != null && payloads.size() > 0) {
-                Iterator<Map<String, String>> iter = payloads.iterator();
+                Iterator<Map<String, Object>> iter = payloads.iterator();
                 while (iter.hasNext()) {
-                    Map<String, String> payloadMeta = iter.next();
-                    String pid = payloadMeta.get("pid");
-                    manifest.put(pid, new MongoPayload(this, pid,
-                            payloadMeta.get("fileId"), payloadBackend));
+                    Map<String, Object> payloadMeta = iter.next();
+                    String pid = (String) payloadMeta.get("pid");
+                    manifest.put(pid,
+                            new MongoPayload(this, pid,
+                                    (String) payloadMeta.get("fileId"),
+                                    payloadBackend));
                 }
             }
             // append the 'pseudo' payload 'metadata.tfpackage'
@@ -159,13 +162,30 @@ public class MongoDigitalObject extends GenericDigitalObject
         return manifest;
     }
 
+    private Map<String, Object> getFileInfo(String pid) {
+        Map<String, Object> fileInfo = null;
+        List<Map<String, Object>> payloads = getFileList();
+        if (payloads != null && payloads.size() > 0) {
+            Iterator<Map<String, Object>> iter = payloads.iterator();
+            while (iter.hasNext()) {
+                fileInfo = iter.next();
+                String pidMeta = (String) fileInfo.get("pid");
+                if (pidMeta.equals(pid)) {
+                    return fileInfo;
+                }
+            }
+        }
+        return fileInfo;
+    }
+
     @Override
     public Set<String> getPayloadIdList() {
         return getManifest().keySet();
     }
 
     private Payload createPayload(String pid, InputStream source,
-            boolean linked, PayloadType payloadType) throws StorageException {
+            boolean linked, PayloadType payloadType)
+            throws IOException, StorageException {
 
         Map<String, Payload> manifest = getManifest();
         if (manifest.containsKey(pid)) {
@@ -177,11 +197,15 @@ public class MongoDigitalObject extends GenericDigitalObject
                 payloadBackend);
         payload.setLinked(linked);
         payload.setType(payloadType);
+        Tika tika = new Tika();
+        String mimeType = tika.detect(pid);
+        payload.setContentType(mimeType);
         payload.create(source);
         // add to manifest
         manifest.put(pid, payload);
-        addFileMeta(pid, payload.getFileIdAsString());
+        addFileMeta(payload);
         save();
+        payload.setMetaChanged(false);
         return payload;
     }
 
@@ -191,17 +215,21 @@ public class MongoDigitalObject extends GenericDigitalObject
         if (pid == null || in == null) {
             throw new StorageException("Error; Null parameter recieved");
         }
-        PayloadType type = null;
-        if (METADATA_PAYLOAD.equals(pid)) {
-            type = PayloadType.Annotation;
-        } else if (getSourceId() == null) {
-            type = PayloadType.Source;
-            setSourceId(pid);
-        } else {
-            type = PayloadType.Annotation;
+        try {
+            PayloadType type = null;
+            if (METADATA_PAYLOAD.equals(pid)) {
+                type = PayloadType.Annotation;
+            } else if (getSourceId() == null) {
+                type = PayloadType.Source;
+                setSourceId(pid);
+            } else {
+                type = PayloadType.Annotation;
+            }
+            Payload payload = createPayload(pid, in, false, type);
+            return payload;
+        } catch (Exception e) {
+            throw new StorageException(e);
         }
-        Payload payload = createPayload(pid, in, false, type);
-        return payload;
     }
 
     @Override
@@ -229,7 +257,9 @@ public class MongoDigitalObject extends GenericDigitalObject
             throw new StorageException("pID '" + pid + "': was not found");
 
         }
-        return manifest.get(pid);
+        Map<String, Object> fileInfo = getFileInfo(pid);
+        return new MongoPayload(this, pid, (String) fileInfo.get("fileId"),
+                payloadBackend);
     }
 
     @Override
@@ -247,8 +277,14 @@ public class MongoDigitalObject extends GenericDigitalObject
     @Override
     public Payload updatePayload(String pid, InputStream in)
             throws StorageException {
-        // TODO Auto-generated method stub
-        return null;
+        MongoPayload payload = (MongoPayload) getPayload(pid);
+        getManifest().remove(pid);
+        removeFileMeta(pid);
+        payload.update(in);
+        getManifest().put(pid, payload);
+        addFileMeta(payload);
+        save();
+        return payload;
     }
 
     @Override
@@ -300,15 +336,27 @@ public class MongoDigitalObject extends GenericDigitalObject
         boolean isInStorage = existsInStorage();
         if (!isInStorage) {
             getObjectMetadata();
+            mergeMetaProp();
             objectMetaCol.insertOne(objectMetadata);
             getRecordMetadata();
             metaCol.insertOne(recordMetadata);
         } else {
+            mergeMetaProp();
             // full replacement of object metadata...
             objectMetaCol.findOneAndReplace(eq("redboxOid", oid),
                     objectMetadata);
             // full replacement of record metadata...
             metaCol.findOneAndReplace(eq("redboxOid", oid), recordMetadata);
+        }
+    }
+
+    private void mergeMetaProp() {
+        // metadata properties overrides objectMetadata as this is the legacy
+        // code's way of setting properties
+        if (metadataProp != null && !metadataProp.isEmpty()) {
+            for (Map.Entry<Object, Object> entry : metadataProp.entrySet()) {
+                objectMetadata.put((String) entry.getKey(), entry.getValue());
+            }
         }
     }
 
@@ -338,33 +386,41 @@ public class MongoDigitalObject extends GenericDigitalObject
     }
 
     @SuppressWarnings("unchecked")
-    public List<Map<String, String>> getFileList() {
-        return (List<Map<String, String>>) recordMetadata.get("files");
+    public List<Map<String, Object>> getFileList() {
+        return (List<Map<String, Object>>) recordMetadata.get("files");
     }
 
-    protected void addFileMeta(String pid, String fileId) {
-        List<Map<String, String>> files = getFileList();
+    protected void addFileMeta(MongoPayload payload) {
+        List<Map<String, Object>> files = getFileList();
         if (files == null) {
-            files = new ArrayList<Map<String, String>>();
+            files = new ArrayList<Map<String, Object>>();
             recordMetadata.put("files", files);
         }
-        HashMap<String, String> info = new HashMap<String, String>();
-        info.put("pid", pid);
-        info.put("backend", payloadBackend.toString());
-        info.put("fileId", fileId);
+        Map<String, Object> info = payload.getMetadataDoc();
         files.add(info);
     }
 
     protected void removeFileMeta(String pid) {
-        List<Map<String, String>> files = getFileList();
-        Map<String, String> metaToRemove = null;
-        for (Map<String, String> info : files) {
-            if (info.get("pid").equals(pid)) {
-                metaToRemove = info;
+        List<Map<String, Object>> files = getFileList();
+        Map<String, Object> metaToRemove = null;
+        if (files != null) {
+            for (Map<String, Object> info : files) {
+                if (info.get("pid").equals(pid)) {
+                    metaToRemove = info;
+                }
+            }
+            if (metaToRemove != null) {
+                files.remove(metaToRemove);
             }
         }
-        if (metaToRemove != null) {
-            files.remove(metaToRemove);
-        }
     }
+
+    public void updatePayloadMeta(MongoPayload payload)
+            throws StorageException {
+        removeFileMeta(payload.getId());
+        addFileMeta(payload);
+        save();
+        payload.setMetaChanged(false);
+    }
+
 }

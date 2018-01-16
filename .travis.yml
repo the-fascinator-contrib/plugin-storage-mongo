@@ -1,0 +1,19 @@
+sudo: required
+language: java
+services:
+- docker
+before_install:
+- mkdir /tmp/build
+- docker pull qcifengineering/redbox-builder
+- docker run -v /tmp/build:/build -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git"
+  qcifengineering/redbox-builder
+install: true
+script: true
+after_success:
+- docker run -v /tmp/build:/build -e "SONATYPE_USERNAME=$SONATYPE_USERNAME" -e "SONATYPE_PASSWORD=$SONATYPE_PASSWORD"
+  qcifengineering/redbox-builder /bin/bash -c "cd build/src;mvn --settings /m2_repo/travis-settings.xml
+  -Dmaven.repo.local=/m2_repo -DskipTests=true deploy"
+env:
+  global:
+  - secure: SbuF+sCagEwPifF5k+Ua2QZocyfdt3EnAeSFYKf7f/9NzxLjhkFEYp1CFRoNIOX9OTy6Sui9WZXLIxvRfrE/gHvy05lIMEd+cQcOksV+p5lVqKsSWER5B06MCJToqzhkFdk44uq38wwOAnqfK0wJMP2HSxqPJ2x3bq14LjG4gIhfOc9AwItKgpJmxrEujxp7+FQqxsOb66XcENmxFycjTzCtH9kytek+CVPcom5+K5p7Y07LRwLM/krNdvoeUED5vUXDPk6X4fznFf9g0KarW7GDf2s8VKbfMxbFi9NMc9pXFav3fA3X7tC+zC/02TD9tt/mak2OSFZD8FLvLqxwOfZQgsf5Ay5Up/Uu5CKMUGOyE4m8WFh9RSVdC7OyZ7KrBCOuLFHjtZP5GCLQVrrKpSg/vub2/N9LmOVcT+9meuGRnuSrFd2QCqOi3M9fPASzregqh/Z3IJkzn0XVvDNcK5V3m4R1WfPORnbYDbWuEEDqDGmAfrpa1WGc+r0TqrqWKTUxFef2HOqNzu7hQCtucTPG8a1c13idSs5XGsHl8tBLY9d4knjYi8mOsAsmErwlDMU6Gbt2Jwo2h484ddZaywPAKhpL22i/xMfiMhMntspi75yrX307uZLMNi5Vgg9NPYw5Fw6xU8PY/pQIa4bAt2/a8p6LtGDN/zYqJQJkyCI=
+  - secure: jGfVSKT1rjAWnxY5hMhAmMozIgPsPDwTkw0Vdd4o/xvAcqSbhxN5ZcCR8EN5+kU4SbTcSoAuLkX3/pyBvYLIUcYfxUbX/8LAYV1V2ONb4G+CZ83aJtIoxgcSaQOIahMqYDiN0011IDub73MfwMva5auKmHaUWTGr4ke5x2tKwr1kGB00YUATu52BMP7Qtrh53MQTxBW/uqt7GXScyuYk1E3WiQ5lakrSPKjRII7ryzTCkMFZ5RhEhLvxdXs3ZuSg2PtyAXD/t7CaXc6MFjYiU8mRW9VonEMLlkG/Cfi2JG+T6Cbbp+M88m/UE/9lLve+NUpiTcPy240USfiUcPUAlh5DHYQmLzCdVaAC1RnQSElipgiwaFcb9y0YHhlESmAtaz2YsvQrT70GF9UE2Pq/f3BbSg5B46+oUAOl24cz4JFH2gxi0PF6DIsFkZmiS5q5vS/9kAh3TYec0RO2x7UFcJZpfFB1ax1czDPkBoepABAwd+6EHegshWcwdYrmp43Ph33NNfxaSDlx9DyiWUr+zIF9DGIqQm5e5FDzYK4qXQq1XuJOVkwPffmhvCFIe5e66X+jJ+KkWrud5a1drRrXHc1/q+48r/jJUeOLOsrSx5mcEPapr9WbdHO00x8VyURFt5WmyhFHf0tahC20oAYV8FgfF4VCBQHq/UJDfuUgeDQ=
