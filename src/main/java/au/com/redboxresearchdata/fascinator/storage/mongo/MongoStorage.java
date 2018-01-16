@@ -1,7 +1,6 @@
 /*
- * The Fascinator - Fedora Commons 3.x storage plugin
- * Copyright (C) 2009-2011 University of Southern Queensland
- * Copyright (C) 2011 Queensland Cyber Infrastructure Foundation (http://www.qcif.edu.au/)
+ * The Fascinator - MongoDB Storage Plugin
+ * Copyright (C) 2018 Queensland Cyber Infrastructure Foundation (http://www.qcif.edu.au/)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
