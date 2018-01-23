@@ -114,22 +114,6 @@
 				</plugin>
 		</plugins>
   </build>
-  <repositories>
-  <repository>
-    <id>fascinator-snapshots</id>
-    <url>http://dev.redboxresearchdata.com.au/nexus/content/repositories/central-snapshots/</url>
-    <releases>
-      <enabled>false</enabled>
-    </releases>
-    <snapshots>
-      <enabled>true</enabled>
-    </snapshots>
-  </repository>
-  <repository>
-    <id>redbox-nexus</id>
-    <url>http://dev.redboxresearchdata.com.au/nexus/content/groups/public/</url>
-  </repository>
-</repositories>
 <scm>
   <url>https://github.com/the-fascinator-contrib/plugin-storage-mongo</url>
   <developerConnection>scm:git:https://github.com/the-fascinator-contrib/plugin-storage-mongo.git</developerConnection>
