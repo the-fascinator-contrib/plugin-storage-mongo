@@ -5,8 +5,7 @@ services:
 before_install:
 - mkdir /tmp/build
 - docker pull qcifengineering/redbox-builder
-- docker run -v /tmp/build:/build -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git"
-  qcifengineering/redbox-builder
+- docker run -v /tmp/build:/build -v $HOME/.m2:/root/.m2 -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git" qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build;git clone https://github.com/the-fascinator-contrib/plugin-storage-mongo.git src; cd src; mvn -Dmaven.repo.local=/m2_repo clean package"
 install: true
 script: true
 after_success:
