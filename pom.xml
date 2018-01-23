@@ -31,7 +31,7 @@
     </dependency>
     <dependency>
         <groupId>org.mongodb</groupId>
-        <artifactId>mongodb-driver</artifactId> 
+        <artifactId>mongodb-driver</artifactId>
         <version>3.5.0</version>
     </dependency>
     <dependency>
@@ -84,22 +84,22 @@
 				    <execution>
 				      <id>start</id>
 				      <goals>
-				        <goal>start</goal> 
+				        <goal>start</goal>
 				      </goals>
 				      <configuration>
 				        <port>37017</port>
 				        <databaseDirectory>/tmp/mongotest</databaseDirectory>
 				        <!-- optional, default is a new dir in java.io.tmpdir -->
-				        
+
 				        <logging>console</logging>
 				        <!-- optional (file|console|none), default console -->
-				        				        
+
 				        <bindIp>127.0.0.1</bindIp>
 				        <!-- optional, default is to listen on all interfaces -->
-				        
+
 				        <storageEngine>wiredTiger</storageEngine>
 				        <!--optional, one of wiredTiger or mmapv1 (default is mmapv1) -->
-				        
+
 				        <skip>false</skip>
 				        <!-- optional, skips this plugin entirely, use on the command line like -Dembedmongo.skip -->
 				      </configuration>
@@ -114,4 +114,24 @@
 				</plugin>
 		</plugins>
   </build>
+  <repositories>
+  <repository>
+    <id>fascinator-snapshots</id>
+    <url>http://dev.redboxresearchdata.com.au/nexus/content/repositories/central-snapshots/</url>
+    <releases>
+      <enabled>false</enabled>
+    </releases>
+    <snapshots>
+      <enabled>true</enabled>
+    </snapshots>
+  </repository>
+  <repository>
+    <id>redbox-nexus</id>
+    <url>http://dev.redboxresearchdata.com.au/nexus/content/groups/public/</url>
+  </repository>
+</repositories>
+<scm>
+  <url>https://github.com/the-fascinator-contrib/plugin-storage-mongo</url>
+  <developerConnection>scm:git:https://github.com/the-fascinator-contrib/plugin-storage-mongo.git</developerConnection>
+</scm>
 </project>
