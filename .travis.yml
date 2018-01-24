@@ -5,20 +5,25 @@ services:
 before_install:
 - mkdir /tmp/build
 - docker pull qcifengineering/redbox-builder
-- docker run -v /tmp/build:/build -v $HOME/.m2:/root/.m2 -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git" qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build;git clone https://github.com/the-fascinator-contrib/plugin-storage-mongo.git src; cd src; mvn clean package"
+- docker run -v /tmp/build:/build -v $HOME/.m2:/root/.m2 -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git"
+  qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >>
+  /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build;git clone https://github.com/the-fascinator-contrib/plugin-storage-mongo.git
+  src; cd src; mvn clean package"
 install: true
 script: true
 after_success:
 - docker run -v /tmp/build:/build -e "SONATYPE_USERNAME=$SONATYPE_USERNAME" -e "SONATYPE_PASSWORD=$SONATYPE_PASSWORD"
-  qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build; cd src; mvn --settings /m2_repo/travis-settings.xml clean deploy"
+  qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >>
+  /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build; cd src; mvn --settings
+  /m2_repo/travis-settings.xml clean deploy"
 env:
   global:
-  - secure: XuThi2dnM20+JdtGYLweVfgiQI57BHS9pTi19qyin4uMUZadvyQDvCmNie02cq8KJ+710ojH0BhdoG+u5c+Xkf5x6l79zXWxfbXgmDrOhahdC0DwbfDz1u2RHuL5/mnYy+A/RkrNGuTxzzNlMuYEADA7xHqAREbAlf+df6JgM0atfRbfCWlYl38BmrN2oG/ToGEViLsM+PE+MlOxNK0pzaGHmJdK3TVwV63+rdRV9gFxUMOCQDleJB8iLullVzN1AHGBZFOsXrcGHJxYqIocyYKTzu29P76xC6f+HBZJuXJd6BYOqKSc93UFTHn0rPiT/THMKSNSFMcHmBFUL1+lrb5xTYUW5LhdgiZR0V3lR7vuHKtW432u2tiUtBeSpeLaSaBRKxrkDIqtlStw6YW6+eiTh+DXR1oUtw1yRyruGEFtfz2SqfgQWNefi0ocb/T7qROuWq2zRunF8TOFPazobs6uPqRfvLQLj7v7+2hF8L9LLx4xODkhad3TaV61o3dS2NY1+gRs6f8MTqC5ZipeAP1DYGj75NqsY7UZ+4KMSTBtZvj79YAM/8tLh32r0K9NQJG2TQsgaVqruy8s4fHOXcgeXJgNOdY+K+dwMRPswPrtdsPXWZmAQEaJBSkSUtQZxZSB0aa+WqRAziMlDdDjywq1u0z05YZsikJ9d+5mxcQ=
-  - secure: KKDreW50fk+n8KO83iHzMHgYZxa774uy3jREWTxpTTOQvnTII89uuXhGsRxmRcgAgHarZkrmQOOYzJx0XMBmiulURSIkV98hVgw86DkkJpTo3y6h+LivevB7gl9E/pr/igItLLd5/3VhZhO0dY2XZIHXUp1RfyEwfNnwP4qw5jvO+e53AggdADbpc60G42NirQiisisvpoqdFOOihMD/pFPChUGUef+/l0aZUrvgQhHE9fuc4TM37R5CAV0vfomUbOViWq7s0KSVmOkAnj85ls9jKf9jOaT1ovfu+6I2DaQ/r6liyJafqND3xXa4QenfvRfViMYe0MHiBnAr2zybgeCv9LosWR43H/DCVCewUScGtTJIvoSRHpgSazSSVnBNQMfgEYJmZTlI3H+iP8AFxyI4Hu29xqNO16ELj+qS8ZtHm4IafsDpHF3TwbP7lpORcXs0JRFC6aIQ+48Vg4n2fHjegakzy62iUkMFNNu46TUR7/gJzAxvVMHHRQtx77xAMs+jrOdEzsEdcRXr0FEoOZnyJftQ6hjuW0oX+elmIc2W2DxelzCxEuzNKhzyegAxVvFhSXBfktwanachk6R/xavANLvviPOSyY++xEYNzdCrOi++boUfQLiPE3EdY6IXLdGfH6hLYwSHyuDxNHNFGJ9Dw+6NCi+CFBkANX/O520=
+  - secure: QCeCV2lfLW6QRwjUaZr0+Zdyrs1MWxXMKUmxrf34ZcKzklhFiytCxxklmkthvCyBK/+lNz+gOqr2unXF08ddC1FvhJBodCJ5qeiNR4Up/VK3NOC2ZtMPndAqxLbQ2O0NAm4RvHiZ4xmSvyUpcoGyvAPhs5ULlgRtMtSH61flHHNNwGI+bY1FoQK4TjPOyfz72HSmzYRAUz4J7tZwMgJrNO0KNEKb8VzpcBsVwzDWxJgeIogCaEPYXadhWO3/BXDhZHTyCbTZXLMMiZlD8/TlAgjwto9EK5TrsncytPHdifZMArOG8z0lUiIDSzIYgQoFP5eXJFbtYfnd1BK+j5Wzpr/THBhyhhAbM+63kMvCUG0UvriYbVBJz8MxBvWH43CPpQNIFNbycJ2X61hHVZnsmtHESaNnUaH+uSfe/9EPQx2w5WKcvhKLSWXbLD+NVDhKxmBn7HyHHPtkgpXfN2iJVLpWwYtyZP3mT0/7Uq+h0Kw4MmNN1ryPqFkaJ9A+CbJCs8Nne1O11eSPCicr0r3wWf1LsReEzUKB3mBQDcRcMEQw0ggzO9J7okA/rO4uWftY7HQSKDRUvzePwtGHVqWu4OZSYQYy7WkdVh2vwL6yg6ZTdXfbZPuwgx9TSmCj5N+67KXd1pa6NwNk0tezCn3U+DlTJb6lK90PUcBc3vsunfg=
+  - secure: bdEhvklO3QqEGihbTx7Vf0LBZgFsxKGsj61Il9tP/XbWli50blXTySrkH6o6NwZkHlwLXQU6n0pF8mUgADP2dF6WzupjjhhUskebFCEb1IxcyW9mhPAMZJMjk5MdMTy7w6VY4IBvBeLyjCghwIs7kXohxg7GJ3rxyIRV1IGu5g2vlSjqWp/iK6Orhfu+QE0k0ct4YdSz57yBRhsm5H0+zGdIHhlSxz2vgG0css93nVfBBiOB/n3cqGb/M52jSSXMQBaC91dk1XuR7JNbIEtlKS5pAvhZqTryZ98FZbVFTdK7Ant4ODRzfZCgyaCL4NnEi73SNqJs73NxK6LwBC4OrI30mle47drh2a2vYMvYJBkVmdwKjviJiaoxvbGzHDAFc5qzokHX8R44hfqn/n0w2nry2GdO3Fx6RrfmcuIjUyO9bukHXbgpI+QfYY9/JGHJ8GsAmbuFoC+CuyjUoc3LMdzyNL4joja4PE04qjUZWAfm09qpf08QuRq4toSJkiNWGdlRZEOu43ytsHAC7BCrT6kZ5PkefRfNzyuMhD5yXkjvHeEdhhJKSEHh+bKf6gMdrmLIEy3bNpsp6vxcuSPQEkLL7DkiX4gYfQun6736Z9afzg5egwHIVHSSzeuZT9kViaThJExDHWajdF+5G8UNypP8hmXU6U38fQ/NIV5X3WQ=
 notifications:
   webhooks:
     urls:
-      - http://dev.redboxresearchdata.com.au/hooks/travis
+    - http://dev.redboxresearchdata.com.au/hooks/travis
     on_success: always
     on_failure: never
     on_start: never
