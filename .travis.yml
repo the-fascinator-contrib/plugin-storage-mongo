@@ -5,13 +5,12 @@ services:
 before_install:
 - mkdir /tmp/build
 - docker pull qcifengineering/redbox-builder
-- docker run -v /tmp/build:/build -v $HOME/.m2:/root/.m2 -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git" qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build;git clone https://github.com/the-fascinator-contrib/plugin-storage-mongo.git src; cd src; mvn -Dmaven.repo.local=/m2_repo clean package"
+- docker run -v /tmp/build:/build -v $HOME/.m2:/root/.m2 -e "CLONEPATH=https://github.com/the-fascinator-contrib/plugin-storage-mongo.git" qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build;git clone https://github.com/the-fascinator-contrib/plugin-storage-mongo.git src; cd src; mvn clean package"
 install: true
 script: true
 after_success:
 - docker run -v /tmp/build:/build -e "SONATYPE_USERNAME=$SONATYPE_USERNAME" -e "SONATYPE_PASSWORD=$SONATYPE_PASSWORD"
-  qcifengineering/redbox-builder /bin/bash -c "cd build/src;mvn --settings /m2_repo/travis-settings.xml
-  -Dmaven.repo.local=/m2_repo -DskipTests=true deploy"
+  qcifengineering/redbox-builder /bin/bash -c "echo '0.0.0.0 static.appfuse.org' >> /etc/hosts; echo '0.0.0.0 semweb4j.org' >> /etc/hosts; cd build; cd src; mvn --settings /m2_repo/travis-settings.xml clean deploy"
 env:
   global:
   - secure: XuThi2dnM20+JdtGYLweVfgiQI57BHS9pTi19qyin4uMUZadvyQDvCmNie02cq8KJ+710ojH0BhdoG+u5c+Xkf5x6l79zXWxfbXgmDrOhahdC0DwbfDz1u2RHuL5/mnYy+A/RkrNGuTxzzNlMuYEADA7xHqAREbAlf+df6JgM0atfRbfCWlYl38BmrN2oG/ToGEViLsM+PE+MlOxNK0pzaGHmJdK3TVwV63+rdRV9gFxUMOCQDleJB8iLullVzN1AHGBZFOsXrcGHJxYqIocyYKTzu29P76xC6f+HBZJuXJd6BYOqKSc93UFTHn0rPiT/THMKSNSFMcHmBFUL1+lrb5xTYUW5LhdgiZR0V3lR7vuHKtW432u2tiUtBeSpeLaSaBRKxrkDIqtlStw6YW6+eiTh+DXR1oUtw1yRyruGEFtfz2SqfgQWNefi0ocb/T7qROuWq2zRunF8TOFPazobs6uPqRfvLQLj7v7+2hF8L9LLx4xODkhad3TaV61o3dS2NY1+gRs6f8MTqC5ZipeAP1DYGj75NqsY7UZ+4KMSTBtZvj79YAM/8tLh32r0K9NQJG2TQsgaVqruy8s4fHOXcgeXJgNOdY+K+dwMRPswPrtdsPXWZmAQEaJBSkSUtQZxZSB0aa+WqRAziMlDdDjywq1u0z05YZsikJ9d+5mxcQ=
