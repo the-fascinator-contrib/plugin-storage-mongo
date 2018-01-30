@@ -24,6 +24,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,7 @@ public class MongoDigitalObject extends GenericDigitalObject
     protected Document recordMetadata;
     protected Properties metadataProp;
     protected JsonDigitalObject.PayloadBackend payloadBackend;
+    protected Map<String, String> encodedChars;
 
     public MongoDigitalObject(MongoDatabase mongoDb, String collectionName,
             String objectMetadataCollectionName, String oid,
@@ -77,6 +79,10 @@ public class MongoDigitalObject extends GenericDigitalObject
         this.oid = oid;
         this.objectMetadataCollectionName = objectMetadataCollectionName;
         this.payloadBackend = payloadBackend;
+        encodedChars = new HashMap<String, String>();
+        encodedChars.put(".", "_dot_");
+        encodedChars.put("$", "_dollar_");
+
     }
 
     public MongoDatabase getMongoDb() {
@@ -112,7 +118,9 @@ public class MongoDigitalObject extends GenericDigitalObject
         getObjectMetadata();
         if (metadataProp == null) {
             metadataProp = new Properties();
-            metadataProp.putAll(objectMetadata);
+            for (String key : objectMetadata.keySet()) {
+                metadataProp.put(unescapeKey(key), objectMetadata.get(key));
+            }
         }
         return metadataProp;
     }
@@ -355,9 +363,25 @@ public class MongoDigitalObject extends GenericDigitalObject
         // code's way of setting properties
         if (metadataProp != null && !metadataProp.isEmpty()) {
             for (Map.Entry<Object, Object> entry : metadataProp.entrySet()) {
-                objectMetadata.put((String) entry.getKey(), entry.getValue());
+                objectMetadata.put(escapeKey((String) entry.getKey()),
+                        entry.getValue());
             }
         }
+    }
+
+    private String escapeKey(String key) {
+        for (String encodedKey : encodedChars.keySet()) {
+            key = key.replace(encodedKey, encodedChars.get(encodedKey));
+        }
+        return key;
+    }
+
+    private String unescapeKey(String key) {
+        for (String encodedKey : encodedChars.keySet()) {
+            String decodedKey = encodedChars.get(encodedKey);
+            key = key.replace(decodedKey, encodedKey);
+        }
+        return key;
     }
 
     public void load() throws StorageException {

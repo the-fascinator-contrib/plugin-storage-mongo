@@ -53,7 +53,7 @@ public class MongoStorageIT {
         // Super Nuke... We expect 'messy' failures to cause a size test to
         // fail in the init() method, but cleaning up for the next test can
         // be annoying if done manually. Uncomment this for one execution.
-        // nukeStorage();
+        nukeStorage();
         if (storage != null) {
             storage.shutdown();
         }
@@ -622,13 +622,14 @@ public class MongoStorageIT {
 
         // Alter the object's metadata
         Properties metadata = object.getMetadata();
-        metadata.setProperty("testProperty1", "set");
+        metadata.setProperty("test.Property1.test1", "set");
         object.close();
 
         // Re-instantiate and check
         DigitalObject object2 = storage.getObject("testObject1");
         Properties metadata2 = object2.getMetadata();
-        Assert.assertEquals("set", metadata2.getProperty("testProperty1"));
+        Assert.assertEquals("set",
+                metadata2.getProperty("test.Property1.test1"));
 
         // Cleanup
         storage.removeObject("testObject1");
