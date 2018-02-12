@@ -5,7 +5,7 @@
             "host": "localhost",
             "db": "redbox-int-test",
             "port": 37017,
-            "payload_backend": "GRIDFS"
+            "payload_backend": "MONGO"
         }
     }
 }

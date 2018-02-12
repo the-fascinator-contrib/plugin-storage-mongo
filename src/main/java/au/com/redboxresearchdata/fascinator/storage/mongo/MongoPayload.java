@@ -23,19 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.bson.Document;
-import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.googlecode.fascinator.api.storage.JsonDigitalObject;
 import com.googlecode.fascinator.api.storage.PayloadType;
 import com.googlecode.fascinator.api.storage.StorageException;
 import com.googlecode.fascinator.common.storage.impl.GenericPayload;
-import com.mongodb.client.gridfs.GridFSBucket;
-import com.mongodb.client.gridfs.GridFSBuckets;
-import com.mongodb.client.gridfs.GridFSDownloadStream;
-import com.mongodb.client.gridfs.model.GridFSFile;
-import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 
 /**
  * MongoPayload
@@ -48,27 +41,24 @@ public class MongoPayload extends GenericPayload {
     private static Logger log = LoggerFactory.getLogger(MongoPayload.class);
 
     protected MongoDigitalObject obj;
-    protected String payloadPath;
-    protected ObjectId mongoFileId;
-    GridFSDownloadStream ds;
     protected Date lastModified;
     protected String pid;
-    protected JsonDigitalObject.PayloadBackend backend;
+    protected MongoDigitalObject.PayloadBackend backendType;
+    protected MongoPayloadBackend backend;
+    protected String fileId;
+    protected boolean hasChangedBackendType;
 
     public MongoPayload(MongoDigitalObject obj, String pid, String fileId,
-            JsonDigitalObject.PayloadBackend backend) {
+            MongoDigitalObject.PayloadBackend backend) {
         super(pid);
         this.obj = obj;
         this.pid = pid;
-        this.backend = backend;
-        payloadPath = obj.oid + "/" + pid;
+        backendType = backend;
         setLabel(pid);
         // call this because of the flag that's set with the setLabel call
         setMetaChanged(false);
+        this.fileId = fileId;
         if (fileId != null) {
-            if (backend.equals(JsonDigitalObject.PayloadBackend.GRIDFS)) {
-                mongoFileId = new ObjectId(fileId);
-            }
             List<Map<String, Object>> files = obj.getFileList();
             if (files != null) {
                 for (Map<String, Object> fileInfo : files) {
@@ -88,9 +78,18 @@ public class MongoPayload extends GenericPayload {
         doc.append("payloadType", getType().toString());
         doc.append("oid", obj.oid);
         doc.append("contentType", getContentType());
-        doc.append("backend", backend.toString());
-        doc.append("fileId", getFileIdAsString());
+        doc.append("backend", backendType.toString());
+        doc.append("backend_type", getBackend().getType());
+        doc.append("payloadId", getPayloadId());
         doc.append("lastModified", lastModified);
+        System.out.println("Metadta doc now is:");
+        System.out.println(doc.toJson());
+        System.out.println("Adding backend metadata...");
+        Document backendMeta = getBackend().getMetadata();
+        if (backendMeta != null) {
+            doc.append(getBackend().getId(), backendMeta);
+        }
+        System.out.println(doc.toJson());
         return doc;
     }
 
@@ -109,55 +108,57 @@ public class MongoPayload extends GenericPayload {
         setType(PayloadType.valueOf(doc.getString("payloadType")));
         setContentType(doc.getString("contentType"));
         lastModified = doc.getDate("lastModified");
+        getBackend().setId(doc.getString("payloadId"));
     }
 
     private Date getLastModified() {
         return lastModified;
     }
 
-    /**
-     * Persists the data from 'source' into GridFS using the 'payloadPath'
-     * property as filename.
-     *
-     * @param source
-     */
-    public void create(InputStream source) {
-        lastModified = new Date();
-
-        GridFSUploadOptions options = new GridFSUploadOptions()
-                .metadata(getMetadataDocLocal());
-        mongoFileId = getBucket().uploadFromStream(payloadPath, source,
-                options);
+    private MongoPayloadBackend getBackend() {
+        if (backend == null || hasChangedBackendType) {
+            PayloadType type = getType();
+            switch (type) {
+            case Source:
+                backend = new MongoPayloadBackendCollection(obj, pid);
+                break;
+            default:
+                backend = new MongoPayloadBackendGridFs(obj.oid + "/" + pid,
+                        fileId, obj.getMongoDb());
+            }
+            hasChangedBackendType = false;
+        }
+        return backend;
     }
 
-    private GridFSBucket getBucket() {
-        return GridFSBuckets.create(obj.getMongoDb());
+    public void create(InputStream source) throws StorageException {
+        lastModified = new Date();
+        getBackend().create(source, getMetadataDocLocal());
+        fileId = getBackend().getId();
     }
 
     @Override
     public InputStream open() throws StorageException {
-        ds = getBucket().openDownloadStream(mongoFileId);
-
-        GridFSFile file = ds.getGridFSFile();
-        mongoFileId = file.getObjectId();
-        // setMetadataDoc(file.getMetadata());
-        return ds;
+        return getBackend().open();
     }
 
     @Override
     public void close() throws StorageException {
+        save();
+    }
+
+    public void save() throws StorageException {
         if (hasMetaChanged()) {
             lastModified = new Date();
             obj.updatePayloadMeta(this);
+        } else {
+            System.out.println("Payload closed, not meta changed.");
         }
     }
 
     @Override
     public Long size() {
-        if (ds == null) {
-            ds = getBucket().openDownloadStream(mongoFileId);
-        }
-        return ds.getGridFSFile().getLength();
+        return getBackend().size();
     }
 
     @Override
@@ -165,20 +166,26 @@ public class MongoPayload extends GenericPayload {
         return getLastModified().getTime();
     }
 
-    public String getFileIdAsString() {
-        return mongoFileId.toString();
+    public String getPayloadId() {
+        return getBackend().getId();
     }
 
     public void remove() {
-        getBucket().delete(mongoFileId);
-        ds = null;
-        mongoFileId = null;
+        getBackend().remove();
         lastModified = null;
     }
 
-    public void update(InputStream source) {
+    public void update(InputStream source) throws StorageException {
         remove();
         create(source);
+    }
+
+    @Override
+    public void setType(PayloadType type) {
+        if (type != getType()) {
+            hasChangedBackendType = true;
+        }
+        super.setType(type);
     }
 
 }

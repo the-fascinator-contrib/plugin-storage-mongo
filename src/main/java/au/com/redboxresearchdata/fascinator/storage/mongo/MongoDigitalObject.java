@@ -24,6 +24,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -44,6 +45,9 @@ import com.googlecode.fascinator.common.storage.impl.GenericDigitalObject;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
+
 /**
  * MongoDigitalObject
  *
@@ -52,6 +56,10 @@ import com.mongodb.client.MongoDatabase;
  */
 public class MongoDigitalObject extends GenericDigitalObject
         implements JsonDigitalObject {
+
+    enum PayloadBackend {
+        MONGO
+    }
 
     private static String METADATA_PAYLOAD = "TF-OBJ-META";
 
@@ -66,12 +74,13 @@ public class MongoDigitalObject extends GenericDigitalObject
     protected Document objectMetadata;
     protected Document recordMetadata;
     protected Properties metadataProp;
-    protected JsonDigitalObject.PayloadBackend payloadBackend;
+    protected MongoDigitalObject.PayloadBackend payloadBackend;
     protected Map<String, String> encodedChars;
+    protected DateTimeFormatter df;
 
     public MongoDigitalObject(MongoDatabase mongoDb, String collectionName,
             String objectMetadataCollectionName, String oid,
-            JsonDigitalObject.PayloadBackend payloadBackend) {
+            MongoDigitalObject.PayloadBackend payloadBackend) {
 
         super(oid);
         this.mongoDb = mongoDb;
@@ -82,7 +91,7 @@ public class MongoDigitalObject extends GenericDigitalObject
         encodedChars = new HashMap<String, String>();
         encodedChars.put(".", "_dot_");
         encodedChars.put("$", "_dollar_");
-
+        df = ISODateTimeFormat.dateTime();
     }
 
     public MongoDatabase getMongoDb() {
@@ -101,6 +110,20 @@ public class MongoDigitalObject extends GenericDigitalObject
 
     @Override
     public String getSourceId() {
+        List<Map<String, Object>> files = getFileList();
+        if (files != null) {
+            for (Map<String, Object> fileInfo : files) {
+                if (PayloadType.Source.toString()
+                        .equals(fileInfo.get("payloadType"))) {
+                    sourceId = (String) fileInfo.get("pid");
+                }
+            }
+        }
+        // mirror the legacy behavior of setting the first entry as the source
+        // if none is specified...
+        if (files != null && files.size() > 0) {
+            sourceId = (String) files.get(0).get("pid");
+        }
         return sourceId;
     }
 
@@ -118,9 +141,7 @@ public class MongoDigitalObject extends GenericDigitalObject
         getObjectMetadata();
         if (metadataProp == null) {
             metadataProp = new Properties();
-            for (String key : objectMetadata.keySet()) {
-                metadataProp.put(unescapeKey(key), objectMetadata.get(key));
-            }
+            metadataProp.putAll(objectMetadata);
         }
         return metadataProp;
     }
@@ -164,8 +185,6 @@ public class MongoDigitalObject extends GenericDigitalObject
                                     payloadBackend));
                 }
             }
-            // append the 'pseudo' payload 'metadata.tfpackage'
-
         }
         return manifest;
     }
@@ -228,8 +247,12 @@ public class MongoDigitalObject extends GenericDigitalObject
             if (METADATA_PAYLOAD.equals(pid)) {
                 type = PayloadType.Annotation;
             } else if (getSourceId() == null) {
-                type = PayloadType.Source;
-                setSourceId(pid);
+                if (pid.endsWith("json") || pid.endsWith("tfpackage")) {
+                    type = PayloadType.Source;
+                    setSourceId(pid);
+                } else {
+                    type = PayloadType.Annotation;
+                }
             } else {
                 type = PayloadType.Annotation;
             }
@@ -266,7 +289,7 @@ public class MongoDigitalObject extends GenericDigitalObject
 
         }
         Map<String, Object> fileInfo = getFileInfo(pid);
-        return new MongoPayload(this, pid, (String) fileInfo.get("fileId"),
+        return new MongoPayload(this, pid, (String) fileInfo.get("payloadId"),
                 payloadBackend);
     }
 
@@ -303,11 +326,13 @@ public class MongoDigitalObject extends GenericDigitalObject
     @Override
     public Map<String, Object> getObjectMetadata() {
         if (objectMetadata == null) {
-            objectMetadata = getObjectMetadataFromDb();
+            objectMetadata = getUnescapedDoc(getObjectMetadataFromDb());
             if (objectMetadata == null) {
                 objectMetadata = new Document();
                 objectMetadata.put("redboxOid", oid);
                 objectMetadata.put("collectionName", collectionName);
+                objectMetadata.put("date_object_created",
+                        df.print(new Date().getTime()));
             }
         }
         return objectMetadata;
@@ -316,7 +341,7 @@ public class MongoDigitalObject extends GenericDigitalObject
     @Override
     public Map<String, Object> getRecordMetadata() {
         if (recordMetadata == null) {
-            recordMetadata = getRecordMetadataFromDb();
+            recordMetadata = getUnescapedDoc(getRecordMetadataFromDb());
             if (recordMetadata == null) {
                 recordMetadata = new Document();
                 recordMetadata.put("redboxOid", oid);
@@ -345,16 +370,19 @@ public class MongoDigitalObject extends GenericDigitalObject
         if (!isInStorage) {
             getObjectMetadata();
             mergeMetaProp();
-            objectMetaCol.insertOne(objectMetadata);
+            objectMetaCol.insertOne(getEscapedDoc(objectMetadata));
             getRecordMetadata();
-            metaCol.insertOne(recordMetadata);
+            metaCol.insertOne(getEscapedDoc(recordMetadata));
         } else {
+            objectMetadata.put("date_object_modified",
+                    df.print(new Date().getTime()));
             mergeMetaProp();
             // full replacement of object metadata...
             objectMetaCol.findOneAndReplace(eq("redboxOid", oid),
-                    objectMetadata);
+                    getEscapedDoc(objectMetadata));
             // full replacement of record metadata...
-            metaCol.findOneAndReplace(eq("redboxOid", oid), recordMetadata);
+            metaCol.findOneAndReplace(eq("redboxOid", oid),
+                    getEscapedDoc(recordMetadata));
         }
     }
 
@@ -363,10 +391,68 @@ public class MongoDigitalObject extends GenericDigitalObject
         // code's way of setting properties
         if (metadataProp != null && !metadataProp.isEmpty()) {
             for (Map.Entry<Object, Object> entry : metadataProp.entrySet()) {
-                objectMetadata.put(escapeKey((String) entry.getKey()),
-                        entry.getValue());
+                objectMetadata.put((String) entry.getKey(), entry.getValue());
             }
         }
+    }
+
+    public Document getEscapedDoc(final Document source) {
+        Document escapedVer = null;
+        if (source != null) {
+            escapedVer = new Document();
+            for (String key : source.keySet()) {
+                escapedVer.put(escapeKey(key), source.get(key));
+                Object val = source.get(key);
+                if (val instanceof Map || val instanceof List) {
+                    if (val instanceof List) {
+                        ArrayList list = new ArrayList();
+                        for (Object entryVal : (List) val) {
+                            if (entryVal instanceof Map) {
+                                list.add(getEscapedDoc(
+                                        new Document((Map) entryVal)));
+                            } else {
+                                list.add(entryVal);
+                            }
+
+                        }
+                        escapedVer.put(escapeKey(key), list);
+                    } else {
+                        escapedVer.put(escapeKey(key),
+                                getEscapedDoc(new Document((Map) val)));
+                    }
+                }
+            }
+        }
+        return escapedVer;
+    }
+
+    public Document getUnescapedDoc(final Document source) {
+        Document unEscapedVer = null;
+        if (source != null) {
+            unEscapedVer = new Document();
+            for (String key : source.keySet()) {
+                unEscapedVer.put(unescapeKey(key), source.get(key));
+                Object val = source.get(key);
+                if (val instanceof Map || val instanceof List) {
+                    if (val instanceof List) {
+                        ArrayList list = new ArrayList();
+                        for (Object entryVal : (List) val) {
+                            if (entryVal instanceof Map) {
+                                list.add(getUnescapedDoc((Document) entryVal));
+                            } else {
+                                list.add(entryVal);
+                            }
+                        }
+                        unEscapedVer.put(unescapeKey(key), list);
+                    } else {
+                        unEscapedVer.put(unescapeKey(key),
+                                getUnescapedDoc((Document) source.get(key)));
+                    }
+                }
+
+            }
+        }
+        return unEscapedVer;
     }
 
     private String escapeKey(String key) {
@@ -411,6 +497,9 @@ public class MongoDigitalObject extends GenericDigitalObject
 
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getFileList() {
+        if (recordMetadata == null) {
+            return null;
+        }
         return (List<Map<String, Object>>) recordMetadata.get("files");
     }
 
@@ -436,6 +525,7 @@ public class MongoDigitalObject extends GenericDigitalObject
             if (metaToRemove != null) {
                 files.remove(metaToRemove);
             }
+
         }
     }
 
@@ -445,6 +535,19 @@ public class MongoDigitalObject extends GenericDigitalObject
         addFileMeta(payload);
         save();
         payload.setMetaChanged(false);
+    }
+
+    public Map<String, Object> getPayloadMeta(final String pid) {
+        List<Map<String, Object>> files = getFileList();
+        Map<String, Object> metaToFind = null;
+        if (files != null) {
+            for (Map<String, Object> info : files) {
+                if (info.get("pid").equals(pid)) {
+                    metaToFind = info;
+                }
+            }
+        }
+        return metaToFind;
     }
 
 }

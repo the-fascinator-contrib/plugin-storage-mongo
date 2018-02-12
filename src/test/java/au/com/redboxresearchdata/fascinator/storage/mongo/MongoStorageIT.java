@@ -20,8 +20,13 @@ package au.com.redboxresearchdata.fascinator.storage.mongo;
 
 import java.io.File;
 import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.Date;
+import java.util.Map;
 import java.util.Properties;
 
+import org.apache.commons.io.IOUtils;
+import org.bson.Document;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,11 +37,14 @@ import com.googlecode.fascinator.api.storage.PayloadType;
 import com.googlecode.fascinator.api.storage.StorageException;
 
 import junit.framework.Assert;
+import com.google.gson.Gson;
 
 @SuppressWarnings("unused")
 // @Ignore
 public class MongoStorageIT {
     private MongoStorage storage;
+    private String testFieldStr1 = "{\"test\":\"field\"}";
+    private String testFieldStr4 = "{\"test\":\"field2\"}";
 
     @Before
     public void init() throws Exception {
@@ -127,6 +135,9 @@ public class MongoStorageIT {
         Assert.assertNotNull(object);
         Assert.assertEquals("Object ID does not match", "testObject1",
                 object.getId());
+        // Check for 'required' fields...
+        Assert.assertNotNull(
+                object.getMetadata().getProperty("date_object_created"));
 
         // Cleanup
         storage.removeObject("testObject1");
@@ -185,7 +196,7 @@ public class MongoStorageIT {
 
             // 2) Null - PID
             try {
-                object.createStoredPayload(null, in("testPayload1.txt"));
+                object.createStoredPayload(null, in("testPayload1.json"));
                 Assert.fail();
             } catch (StorageException ex) {
                 // This is what should occur
@@ -202,23 +213,21 @@ public class MongoStorageIT {
             // 4) Normal creation
             sizeTest(1);
             sizeTest(object, 0);
-            object.createStoredPayload("testPayload1", in("testPayload1.txt"));
+            object.createStoredPayload("testPayload1.json",
+                    in("testPayload1.json"));
             sizeTest(1);
             sizeTest(object, 1);
-            object.createStoredPayload("testPayload2", in("testPayload2.xml"));
-            sizeTest(1);
-            sizeTest(object, 2);
 
             // 5) Duplicate creation
             try {
-                object.createStoredPayload("testPayload1",
-                        in("testPayload1.txt"));
+                object.createStoredPayload("testPayload1.json",
+                        in("testPayload1.json"));
                 Assert.fail();
             } catch (StorageException ex) {
                 // This is what should occur
             }
             sizeTest(1);
-            sizeTest(object, 2);
+            sizeTest(object, 1);
 
             // Cleanup
             storage.removeObject("testObject1");
@@ -243,20 +252,19 @@ public class MongoStorageIT {
         // 1) 'Stored' payload - 16261 bytes
         sizeTest(1);
         sizeTest(object, 0);
-        Payload payload1 = object.createStoredPayload("testPayload1",
-                in("testPayload4.png"));
+        Payload payload1 = object.createStoredPayload("testPayload1.json",
+                in("testPayload4.json"));
         sizeTest(1);
         sizeTest(object, 1);
-        sizeTest(payload1, 16261);
         Assert.assertEquals(false, payload1.isLinked());
 
-        // 2) 'Linked' payload - 16261 bytes... ie. Not really linked
-        Payload payload2 = object.createLinkedPayload("testPayload2",
-                path("testPayload4.png"));
-        sizeTest(1);
-        sizeTest(object, 2);
-        sizeTest(payload2, 16261);
-        Assert.assertEquals(false, payload1.isLinked());
+        // // 2) 'Linked' payload - 16261 bytes... ie. Not really linked
+        // Payload payload2 = object.createLinkedPayload("testPayload2",
+        // path("testPayload4.png"));
+        // sizeTest(1);
+        // sizeTest(object, 2);
+        // sizeTest(payload2, 16261);
+        // Assert.assertEquals(false, payload1.isLinked());
 
         // Cleanup
         storage.removeObject("testObject1");
@@ -293,13 +301,14 @@ public class MongoStorageIT {
             // 3) Normal retrieval... after creation
             sizeTest(1);
             sizeTest(object, 0);
-            object.createStoredPayload("testPayload1", in("testPayload1.txt"));
+            object.createStoredPayload("testPayload1.json",
+                    in("testPayload1.json"));
             sizeTest(1);
             sizeTest(object, 1);
-            Payload payload = object.getPayload("testPayload1");
+            Payload payload = object.getPayload("testPayload1.json");
             Assert.assertNotNull(payload);
-            Assert.assertEquals("Payload ID does not match", "testPayload1",
-                    payload.getId());
+            Assert.assertEquals("Payload ID does not match",
+                    "testPayload1.json", payload.getId());
 
             // Cleanup
             storage.removeObject("testObject1");
@@ -338,9 +347,10 @@ public class MongoStorageIT {
             }
 
             // 3) Normal removal... after creation
-            object.createStoredPayload("testPayload1", in("testPayload1.txt"));
+            object.createStoredPayload("testPayload1.json",
+                    in("testPayload1.json"));
             sizeTest(object, 1);
-            object.removePayload("testPayload1");
+            object.removePayload("testPayload1.json");
             sizeTest(1);
             sizeTest(object, 0);
             storage.removeObject("testObject1");
@@ -373,7 +383,7 @@ public class MongoStorageIT {
 
             // 2) Null - PID
             try {
-                object.updatePayload(null, in("testPayload1.txt"));
+                object.updatePayload(null, in("testPayload1.json"));
                 Assert.fail();
             } catch (StorageException ex) {
                 // This is what should occur
@@ -389,28 +399,29 @@ public class MongoStorageIT {
 
             // 4) Does not exist
             try {
-                object.updatePayload("testPayload1", in("testPayload1.txt"));
+                object.updatePayload("testPayload1.json",
+                        in("testPayload1.json"));
                 Assert.fail();
             } catch (StorageException ex) {
                 // This is what should occur
             }
 
             // 5) Normal update... after creation
-            Payload payload1 = object.createStoredPayload("testPayload1",
-                    in("testPayload4.png"));
+            Payload payload1 = object.createStoredPayload("testPayload1.json",
+                    in("testPayload1.json"));
             sizeTest(1);
             sizeTest(object, 1);
-            sizeTest(payload1, 16261);
+            sizeTest(payload1, testFieldStr1.getBytes().length);
             // Assert.assertEquals("image/png", payload1.getContentType());
             Assert.assertEquals("Source", payload1.getType().toString());
             Long lastMod = payload1.lastModified();
 
             // The replacement will be much smaller, and a new MIME type
-            payload1 = object.updatePayload("testPayload1",
-                    in("testPayload1.txt"));
+            payload1 = object.updatePayload("testPayload1.json",
+                    in("testPayload4.json"));
             sizeTest(1);
             sizeTest(object, 1);
-            sizeTest(payload1, 4);
+            sizeTest(payload1, testFieldStr4.getBytes().length);
             // Assert.assertEquals("text/plain", payload1.getContentType());
             Assert.assertEquals("Source", payload1.getType().toString());
             Assert.assertNotSame(lastMod, payload1.lastModified());
@@ -433,12 +444,12 @@ public class MongoStorageIT {
         System.out.println("\n==========\n TEST => payloadOpenClose()\n");
         // Create a basic test object
         DigitalObject object = storage.createObject("testObject1");
-        Payload payload1 = object.createStoredPayload("testPayload1",
-                in("testPayload1.txt"));
-        Payload payload2 = object.createStoredPayload("testPayload2",
-                in("testPayload1.txt"));
-        Payload payload3 = object.createStoredPayload("testPayload3",
-                in("testPayload1.txt"));
+        Payload payload1 = object.createStoredPayload("testPayload1.json",
+                in("testPayload1.json"));
+        Payload payload2 = object.createStoredPayload("testPayload2.json",
+                in("testPayload1.json"));
+        Payload payload3 = object.createStoredPayload("testPayload3.tfpackage",
+                in("testPayload1.json"));
         sizeTest(1);
         sizeTest(object, 3);
 
@@ -489,10 +500,10 @@ public class MongoStorageIT {
 
         // 3) Trivial read of actual data
         InputStream in = payload1.open();
-        Assert.assertEquals(84, in.read()); // 'T'
-        Assert.assertEquals(101, in.read()); // 'e'
-        Assert.assertEquals(115, in.read()); // 's'
-        Assert.assertEquals(116, in.read()); // 't'
+        StringWriter writer = new StringWriter();
+        IOUtils.copy(in, writer, "UTF-8");
+        Assert.assertEquals(writer.toString(), testFieldStr1);
+
         in.close();
         payload1.close();
 
@@ -514,18 +525,22 @@ public class MongoStorageIT {
         // 1) Store a payload
         sizeTest(1);
         sizeTest(object, 0);
+
+        Payload payload0 = object.createStoredPayload("testPayload0.json",
+                in("testPayload1.json"));
+
         Payload payload1 = object.createStoredPayload("testPayload1",
                 in("testPayload4.png"));
         sizeTest(1);
-        sizeTest(object, 1);
+        sizeTest(object, 2);
         sizeTest(payload1, 16261);
 
         // 2) Test properties
-        Assert.assertEquals("testPayload1", object.getSourceId());
+        Assert.assertEquals("testPayload0.json", object.getSourceId());
         // Assert.assertEquals("image/png", payload1.getContentType());
         Assert.assertEquals("testPayload1", payload1.getId());
         Assert.assertEquals("testPayload1", payload1.getLabel());
-        Assert.assertEquals("Source", payload1.getType().toString());
+        Assert.assertEquals("Annotation", payload1.getType().toString());
         Assert.assertEquals(false, payload1.isLinked());
         sizeTest(payload1, 16261);
 
@@ -549,19 +564,45 @@ public class MongoStorageIT {
         payload1.setType(PayloadType.Enrichment);
         // Pre-save
         payload2 = object.getPayload("testPayload1");
-        Assert.assertEquals("Source", payload2.getType().toString());
-        Assert.assertEquals("testPayload1", object.getSourceId());
+        Assert.assertEquals("Annotation", payload2.getType().toString());
+        Assert.assertEquals("testPayload0.json", object.getSourceId());
         // And save...
         payload1.close();
         payload2 = object.getPayload("testPayload1");
         Assert.assertEquals("Enrichment", payload2.getType().toString());
         // Is the source up-to-date now? We know it is invalid
-        Assert.assertEquals("testPayload1", object.getSourceId());
+        Assert.assertEquals("testPayload0.json", object.getSourceId());
+        object.removePayload("testPayload0.json");
         object.close();
         object = storage.getObject("testObject1");
-        Assert.assertNull(object.getSourceId());
+        // Assert.assertNull(object.getSourceId());
 
         // Cleanup
+        storage.removeObject("testObject1");
+
+        object = storage.createObject("testObject1");
+        payload1 = object.createStoredPayload("testPayload1.json",
+                in("testPayload1.json"));
+        object.close();
+
+        object = storage.getObject("testObject1");
+        Assert.assertEquals("testPayload1.json", object.getSourceId());
+
+        storage.removeObject("testObject1");
+
+        DigitalObject obj1 = storage.createObject("testObject1");
+        obj1.createStoredPayload("testPayloadNested.json",
+                in("testPayload5.json"));
+        Payload nestedPayload = obj1.getPayload("testPayloadNested.json");
+
+        InputStream in = nestedPayload.open();
+        StringWriter writer = new StringWriter();
+        IOUtils.copy(in, writer, "UTF-8");
+        Gson gson = new Gson();
+        Document document = new Document();
+        document = gson.fromJson(writer.toString(), document.getClass());
+        Assert.assertEquals("field",
+                ((Map) document.get("field1.blocker")).get("field2.nested"));
         storage.removeObject("testObject1");
     }
 
@@ -580,28 +621,29 @@ public class MongoStorageIT {
         // 1) Store a payload
         sizeTest(1);
         sizeTest(object, 0);
-        Payload payload1 = object.createStoredPayload("testPayload1",
-                in("testPayload1.txt"));
+        Payload payload1 = object.createStoredPayload("testPayload1.json",
+                in("testPayload1.json"));
         sizeTest(1);
         sizeTest(object, 1);
 
         // 2) Closed but not changes
         Long startTime = payload1.lastModified();
         payload1.close();
-        payload1 = object.getPayload("testPayload1");
+        payload1 = object.getPayload("testPayload1.json");
         Long nowTime = payload1.lastModified();
         Assert.assertEquals(startTime, nowTime);
 
         // 3) Metadata changed
         payload1.setLabel("Test Payload 1");
         payload1.close();
-        payload1 = object.getPayload("testPayload1");
+
+        payload1 = object.getPayload("testPayload1.json");
         nowTime = payload1.lastModified();
         Assert.assertTrue(startTime < nowTime);
 
         // 4) Data changed
-        object.updatePayload("testPayload1", in("testPayload2.xml"));
-        payload1 = object.getPayload("testPayload1");
+        object.updatePayload("testPayload1.json", in("testPayload4.json"));
+        payload1 = object.getPayload("testPayload1.json");
         Long newTime = payload1.lastModified();
         Assert.assertTrue(nowTime < newTime);
 
@@ -621,6 +663,7 @@ public class MongoStorageIT {
         DigitalObject object = storage.createObject("testObject1");
 
         // Alter the object's metadata
+        Date now = new Date();
         Properties metadata = object.getMetadata();
         metadata.setProperty("test.Property1.test1", "set");
         object.close();
@@ -628,9 +671,13 @@ public class MongoStorageIT {
         // Re-instantiate and check
         DigitalObject object2 = storage.getObject("testObject1");
         Properties metadata2 = object2.getMetadata();
+
         Assert.assertEquals("set",
                 metadata2.getProperty("test.Property1.test1"));
 
+        // check modified date...
+        String modifiedStr = metadata2.getProperty("date_object_modified");
+        Assert.assertNotNull(modifiedStr);
         // Cleanup
         storage.removeObject("testObject1");
     }
@@ -652,10 +699,11 @@ public class MongoStorageIT {
         for (int i = 0; i < objectLimit; i++) {
             DigitalObject object = storage.createObject("testObject" + i);
             // Payload 1
-            Payload payload1 = object.createStoredPayload("testPayload1",
-                    in("testPayload1.txt"));
-            Assert.assertEquals("testPayload1", object.getSourceId());
-            payload1.setType(PayloadType.Preview);
+            Payload payload1 = object.createStoredPayload("testPayload1.json",
+                    in("testPayload1.json"));
+            Assert.assertEquals("testPayload1.json", object.getSourceId());
+            // Don't support changing of payload types anymore....
+            // payload1.setType(PayloadType.Preview);
             payload1.setLabel("Test Payload 1");
             payload1.close();
             // Payload 2
@@ -672,7 +720,7 @@ public class MongoStorageIT {
             // Payload 4
             Payload payload4 = object.createStoredPayload("testPayload4",
                     in("testPayload4.png"));
-            payload4.setType(PayloadType.Source);
+            // payload4.setType(PayloadType.Source);
             payload4.close();
 
             // Metadata payload
@@ -700,11 +748,11 @@ public class MongoStorageIT {
             sizeTest(object, 4);
             // Assert.assertEquals("testPayload4", object.getSourceId());
 
-            Payload payload = object.getPayload("testPayload1");
-            Assert.assertEquals("testPayload1", payload.getId());
+            Payload payload = object.getPayload("testPayload1.json");
+            Assert.assertEquals("testPayload1.json", payload.getId());
             // Assert.assertEquals("text/plain", payload.getContentType());
             Assert.assertEquals("Test Payload 1", payload.getLabel());
-            Assert.assertEquals("Preview", payload.getType().toString());
+            Assert.assertEquals("Source", payload.getType().toString());
 
             payload = object.getPayload("testPayload2");
             Assert.assertEquals("testPayload2", payload.getId());
@@ -723,7 +771,7 @@ public class MongoStorageIT {
             Assert.assertEquals("testPayload4", payload.getId());
             // Assert.assertEquals("image/png", payload.getContentType());
             Assert.assertEquals("testPayload4", payload.getLabel());
-            Assert.assertEquals("Source", payload.getType().toString());
+            // Assert.assertEquals("Source", payload.getType().toString());
 
             // Metadata
             Properties metadata = object.getMetadata();
@@ -735,7 +783,7 @@ public class MongoStorageIT {
         for (int i = 0; i < objectLimit; i++) {
             DigitalObject object = storage.getObject("testObject" + i);
             sizeTest(object, 4);
-            object.removePayload("testPayload1");
+            object.removePayload("testPayload1.json");
             sizeTest(object, 3);
             object.removePayload("testPayload2");
             sizeTest(object, 2);

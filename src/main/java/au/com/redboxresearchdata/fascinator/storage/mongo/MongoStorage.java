@@ -103,7 +103,7 @@ public class MongoStorage implements JsonStorage {
     private String defaultCollection;
     private String objectMetadataCollectionName;
 
-    private JsonDigitalObject.PayloadBackend payloadBackend;
+    private MongoDigitalObject.PayloadBackend payloadBackend;
 
     @Override
     public String getId() {
@@ -154,9 +154,9 @@ public class MongoStorage implements JsonStorage {
         objectMetadataCollectionName = systemConfig.getString("tf_obj_meta",
                 "storage", "mongo", "metadataCollection");
 
-        String payloadBackendName = systemConfig.getString("GRIDFS", "storage",
+        String payloadBackendName = systemConfig.getString("MONGO", "storage",
                 "mongo", "payload_backend");
-        payloadBackend = JsonDigitalObject.PayloadBackend
+        payloadBackend = MongoDigitalObject.PayloadBackend
                 .valueOf(payloadBackendName);
         mongoClient = new MongoClient(host, port);
         mongoDb = mongoClient.getDatabase(db);
@@ -180,8 +180,7 @@ public class MongoStorage implements JsonStorage {
         }
         // start with the object...
         MongoDigitalObject obj = new MongoDigitalObject(mongoDb, collectionName,
-                objectMetadataCollectionName, oid,
-                JsonDigitalObject.PayloadBackend.GRIDFS);
+                objectMetadataCollectionName, oid, payloadBackend);
         if (obj.existsInStorage()) {
             throw new StorageException(
                     "Error; object '" + oid + "' already exists in MongoDB");
@@ -198,8 +197,7 @@ public class MongoStorage implements JsonStorage {
     public JsonDigitalObject getObject(String oid, String collectionName)
             throws StorageException {
         MongoDigitalObject obj = new MongoDigitalObject(mongoDb, collectionName,
-                objectMetadataCollectionName, oid,
-                JsonDigitalObject.PayloadBackend.GRIDFS);
+                objectMetadataCollectionName, oid, payloadBackend);
         obj.load();
         return obj;
     }
@@ -212,8 +210,7 @@ public class MongoStorage implements JsonStorage {
     public void removeObject(String oid, String collectionName)
             throws StorageException {
         MongoDigitalObject obj = new MongoDigitalObject(mongoDb, collectionName,
-                objectMetadataCollectionName, oid,
-                JsonDigitalObject.PayloadBackend.GRIDFS);
+                objectMetadataCollectionName, oid, payloadBackend);
         obj.remove();
     }
 
