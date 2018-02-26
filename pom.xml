@@ -8,26 +8,26 @@
   <parent>
     <artifactId>organisation</artifactId>
     <groupId>com.googlecode.the-fascinator</groupId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
   </parent>
   <properties>
-    <fascinator.version>1.4</fascinator.version>
+    <fascinator.version>1.5</fascinator.version>
   </properties>
   <dependencies>
     <dependency>
       <groupId>com.googlecode.the-fascinator</groupId>
       <artifactId>fascinator-plugin-api</artifactId>
-      <version>1.4.0.1-SNAPSHOT</version>
+      <version>1.5</version>
     </dependency>
     <dependency>
       <groupId>com.googlecode.the-fascinator</groupId>
       <artifactId>fascinator-common</artifactId>
-      <version>1.4</version>
+      <version>1.5</version>
     </dependency>
     <dependency>
       <groupId>com.googlecode.the-fascinator</groupId>
       <artifactId>fascinator-core</artifactId>
-      <version>1.4</version>
+      <version>1.5</version>
     </dependency>
     <dependency>
         <groupId>org.mongodb</groupId>
