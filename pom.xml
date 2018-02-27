@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.googlecode.the-fascinator.plugins</groupId>
   <artifactId>plugin-storage-mongo</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1-SNAPSHOT</version>
   <name>ReDBox Storage Plugin - MongoDB</name>
   <parent>
     <artifactId>organisation</artifactId>
