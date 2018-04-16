@@ -106,6 +106,8 @@
 				        <!--optional, one of wiredTiger or mmapv1 (default is mmapv1) -->
 
 				        <skip>false</skip>
+				        
+				        <version>3.4.14</version>
 				        <!-- optional, skips this plugin entirely, use on the command line like -Dembedmongo.skip -->
 				      </configuration>
 				    </execution>

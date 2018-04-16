@@ -25,10 +25,12 @@ import static com.mongodb.client.model.Projections.include;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.bson.BsonDocument;
 import org.bson.Document;
 
 import com.googlecode.fascinator.api.PluginDescription;
@@ -39,8 +41,11 @@ import com.googlecode.fascinator.api.storage.JsonStorage;
 import com.googlecode.fascinator.api.storage.StorageException;
 import com.googlecode.fascinator.common.JsonSimpleConfig;
 import com.mongodb.MongoClient;
+import com.mongodb.MongoCommandException;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Aggregates;
 
 /**
  * <p>
@@ -102,6 +107,7 @@ public class MongoStorage implements JsonStorage {
     private MongoDatabase mongoDb;
     private String defaultCollection;
     private String objectMetadataCollectionName;
+    private String recordMetadataViewName;
 
     private MongoDigitalObject.PayloadBackend payloadBackend;
 
@@ -153,6 +159,9 @@ public class MongoStorage implements JsonStorage {
                 "mongo", "defaultCollection");
         objectMetadataCollectionName = systemConfig.getString("tf_obj_meta",
                 "storage", "mongo", "metadataCollection");
+        
+        recordMetadataViewName = systemConfig.getString("metadataDocuments",
+                "storage", "mongo", "recordMetadataCollection");
 
         String payloadBackendName = systemConfig.getString("MONGO", "storage",
                 "mongo", "payload_backend");
@@ -160,9 +169,30 @@ public class MongoStorage implements JsonStorage {
                 .valueOf(payloadBackendName);
         mongoClient = new MongoClient(host, port);
         mongoDb = mongoClient.getDatabase(db);
+        
+        createView();
+        
     }
 
-    @Override
+    private void createView() {
+    	List pipeline = Arrays.asList(
+                BsonDocument.parse("{$match: {files: { $elemMatch:{ pid: \"metadata.tfpackage\"}}}}"),
+                BsonDocument.parse("{ $project: { files: { '$filter': { input: '$files', as: 'files', cond: {$eq: ['$$files.pid','metadata.tfpackage']}}}}}"),
+                BsonDocument.parse("{ $unwind:  '$files' }"),
+                BsonDocument.parse("{ $project: { \"metadata\":\"$files.source.payload\"}}"),
+                BsonDocument.parse("{ $replaceRoot: { newRoot: \"$metadata\"}}")
+        );
+    	 try {
+    	mongoDb.createView(this.recordMetadataViewName, this.defaultCollection, pipeline);
+    	 } catch (MongoCommandException e) {
+    		 //Error code 48 means that the view has already been created
+    		 if(e.getCode() != 48) {
+    			 throw e;
+    		 }
+    	 }
+	}
+
+	@Override
     public void shutdown() throws PluginException {
         mongoClient.close();
     }
@@ -230,6 +260,11 @@ public class MongoStorage implements JsonStorage {
 
     public void dropDb() throws Exception {
         mongoDb.drop();
+    }
+    
+    public FindIterable<Document> query(String collection, String filterString ){
+    	BsonDocument filter = BsonDocument.parse(filterString);
+    	return this.mongoDb.getCollection(collection).find(filter);
     }
 
 }
