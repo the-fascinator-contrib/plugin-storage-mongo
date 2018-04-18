@@ -25,6 +25,8 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.mail.event.FolderAdapter;
+
 import org.apache.commons.io.IOUtils;
 import org.bson.Document;
 import org.junit.After;
@@ -35,6 +37,8 @@ import com.googlecode.fascinator.api.storage.DigitalObject;
 import com.googlecode.fascinator.api.storage.Payload;
 import com.googlecode.fascinator.api.storage.PayloadType;
 import com.googlecode.fascinator.api.storage.StorageException;
+import com.googlecode.fascinator.common.JsonSimple;
+import com.mongodb.client.FindIterable;
 
 import junit.framework.Assert;
 import com.google.gson.Gson;
@@ -682,6 +686,23 @@ public class MongoStorageIT {
         storage.removeObject("testObject1");
     }
 
+    @Test
+    public void queryTest() throws Exception {
+    	DigitalObject object = storage.createObject("testObject1");
+
+        // 1) Store a payload
+        sizeTest(1);
+        sizeTest(object, 0);
+
+        Payload payload0 = object.createStoredPayload("testPayload0.json",
+                in("testPayload1.json"));
+
+        JsonSimple resultObject = storage.pagedQuery("tf_obj_meta", "{}");
+        
+        
+        Assert.assertEquals(resultObject.getString("", "numFound"), "1");
+        Assert.assertEquals(resultObject.getArray("docs").size(), 1);
+    }
     /**
      * Bash away at storage with a significant object and payload usage load.
      * Run a slew of assertions against each object afterwards.

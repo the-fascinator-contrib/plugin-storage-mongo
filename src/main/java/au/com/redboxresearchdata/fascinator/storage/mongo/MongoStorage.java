@@ -39,9 +39,11 @@ import com.googlecode.fascinator.api.storage.DigitalObject;
 import com.googlecode.fascinator.api.storage.JsonDigitalObject;
 import com.googlecode.fascinator.api.storage.JsonStorage;
 import com.googlecode.fascinator.api.storage.StorageException;
+import com.googlecode.fascinator.common.JsonSimple;
 import com.googlecode.fascinator.common.JsonSimpleConfig;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoCommandException;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -176,11 +178,13 @@ public class MongoStorage implements JsonStorage {
 
     private void createView() {
     	List pipeline = Arrays.asList(
-                BsonDocument.parse("{$match: {files: { $elemMatch:{ pid: \"metadata.tfpackage\"}}}}"),
+                BsonDocument.parse("{$match: {files: { $elemMatch:{ pid: 'metadata.tfpackage'}}}}"),
                 BsonDocument.parse("{ $project: { files: { '$filter': { input: '$files', as: 'files', cond: {$eq: ['$$files.pid','metadata.tfpackage']}}}}}"),
                 BsonDocument.parse("{ $unwind:  '$files' }"),
-                BsonDocument.parse("{ $project: { \"metadata\":\"$files.source.payload\"}}"),
-                BsonDocument.parse("{ $replaceRoot: { newRoot: \"$metadata\"}}")
+                BsonDocument.parse("{ $project: { 'metadata':'$files.source.payload', 'redboxOid': '$files.oid'}}"),
+                BsonDocument.parse("{$lookup: { from: 'tf_obj_meta', localField:'redboxOid', foreignField: 'redboxOid', as: 'tfObj'}}"),
+                BsonDocument.parse("{ $addFields: { 'metadata': { 'redboxOid':  '$redboxOid', 'date_object_created':'$tfObj.date_object_created', 'date_object_modified':'$tfObj.date_object_modified' }}}"),
+                BsonDocument.parse("{ $replaceRoot: { newRoot: '$metadata'}}")
         );
     	 try {
     	mongoDb.createView(this.recordMetadataViewName, this.defaultCollection, pipeline);
@@ -262,7 +266,29 @@ public class MongoStorage implements JsonStorage {
         mongoDb.drop();
     }
     
-    public FindIterable<Document> query(String collection, String filterString ){
+    public JsonSimple pagedQuery(String collection, String filterString ) throws IOException{
+    	return pagedQuery(collection,filterString,0,10);
+    }
+    
+    public JsonSimple pagedQuery(String collection, String filterString, int startIndex, int rows ) throws IOException{
+    	
+    	List<BsonDocument> pipeline = Arrays.asList(
+                BsonDocument.parse("{$match:"+ filterString +"}"),
+                BsonDocument.parse("{'$group':{'_id': null, 'numFound': {'$sum': 1 }, 'docs':{ '$push':'$$ROOT' }} },"),
+                BsonDocument.parse("{'$project': { 'numFound':1 , 'docs' : {'$slice': ['$docs',"+startIndex+","+ rows+"] }   }}")
+        );
+    	
+    	AggregateIterable<Document> result =this.mongoDb.getCollection(collection).aggregate(pipeline);
+    	if(result.first() != null) {
+    		return new JsonSimple(result.first().toJson());
+    	} else {
+    		return  new JsonSimple("{\"_id\": null,  \"numFound\": 0,  \"docs\": []}");
+    	}
+    	
+    	
+    }
+    
+    public FindIterable<Document> query(String collection, String filterString){
     	BsonDocument filter = BsonDocument.parse(filterString);
     	return this.mongoDb.getCollection(collection).find(filter);
     }
