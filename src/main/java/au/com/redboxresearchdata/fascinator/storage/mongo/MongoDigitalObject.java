@@ -210,7 +210,7 @@ public class MongoDigitalObject extends GenericDigitalObject
         return getManifest().keySet();
     }
 
-    private Payload createPayload(String pid, InputStream source,
+    private synchronized Payload createPayload(String pid, InputStream source,
             boolean linked, PayloadType payloadType)
             throws IOException, StorageException {
 
@@ -306,7 +306,7 @@ public class MongoDigitalObject extends GenericDigitalObject
      * @see com.googlecode.fascinator.api.storage.DigitalObject#updatePayload(java.lang.String, java.io.InputStream)
      */
     @Override
-    public Payload updatePayload(String pid, InputStream in)
+    public synchronized Payload updatePayload(String pid, InputStream in)
             throws StorageException {
         MongoPayload payload = (MongoPayload) getPayload(pid);
         getManifest().remove(pid);
@@ -363,7 +363,7 @@ public class MongoDigitalObject extends GenericDigitalObject
         return mongoDb.getCollection(collectionName);
     }
 
-    public void save() throws StorageException {
+    public synchronized void save() throws StorageException {
         MongoCollection<Document> objectMetaCol = getObjectMetadataCollection();
         MongoCollection<Document> metaCol = getMetaCollection();
         boolean isInStorage = existsInStorage();
@@ -390,9 +390,14 @@ public class MongoDigitalObject extends GenericDigitalObject
         // metadata properties overrides objectMetadata as this is the legacy
         // code's way of setting properties
         if (metadataProp != null && !metadataProp.isEmpty()) {
+            log.info("merging properties...");
             for (Map.Entry<Object, Object> entry : metadataProp.entrySet()) {
                 objectMetadata.put((String) entry.getKey(), entry.getValue());
             }
+            log.info(objectMetadata.toString());
+        } else {
+            log.info(
+                    "Trying to merge meta properties, but there was nothing there.");
         }
     }
 
