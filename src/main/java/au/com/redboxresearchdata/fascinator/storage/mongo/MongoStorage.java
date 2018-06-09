@@ -174,25 +174,26 @@ public class MongoStorage implements JsonStorage {
 	 * Create views for each package type to aid querying
 	 */
 	private void createPackageViews() {
-		
+
 		JsonObject packageTypes = systemConfig.getObject("portal", "packageTypes");
-		System.out.println(new JsonSimple(packageTypes).toString(true));
-		for (Object keyObject : packageTypes.keySet()) {
-			String key = (String) keyObject;
-			System.out.println("Creating view for key: " + key);
-			List pipeline = Arrays.asList(BsonDocument.parse("{$match: { 'metaMetadata.type' : '" + key + "'}}"));
-			if (key.equals("default") || key.equals(this.recordMetadataViewName)) {
-				key = key + "_package";
-			}
-			try {
-				mongoDb.createView(key, this.recordMetadataViewName, pipeline);
-			} catch (MongoCommandException e) {
-				// Error code 48 means that the view has already been created
-				if (e.getCode() != 48) {
-					throw e;
+		if (packageTypes != null) {
+			
+			for (Object keyObject : packageTypes.keySet()) {
+				String key = (String) keyObject;
+				List pipeline = Arrays.asList(BsonDocument.parse("{$match: { 'metaMetadata.type' : '" + key + "'}}"));
+				if (key.equals("default") || key.equals(this.recordMetadataViewName)) {
+					key = key + "_package";
+				}
+				try {
+					mongoDb.createView(key, this.recordMetadataViewName, pipeline);
+				} catch (MongoCommandException e) {
+					// Error code 48 means that the view has already been
+					// created
+					if (e.getCode() != 48) {
+						throw e;
+					}
 				}
 			}
-
 		}
 
 	}
@@ -305,9 +306,15 @@ public class MongoStorage implements JsonStorage {
 		BsonDocument filter = BsonDocument.parse(filterString);
 		return this.mongoDb.getCollection(collection).find(filter);
 	}
-	
+
+	/**
+	 * Calls Mongo's aggregate function
+	 * 
+	 * @param collection
+	 * @param pipeline
+	 * @return
+	 */
 	public AggregateIterable<Document> aggregate(String collection, List<BsonDocument> pipeline) {
-		
 		return this.mongoDb.getCollection(collection).aggregate(pipeline);
 	}
 
