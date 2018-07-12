@@ -180,7 +180,7 @@ public class MongoStorage implements JsonStorage {
 			
 			for (Object keyObject : packageTypes.keySet()) {
 				String key = (String) keyObject;
-				List pipeline = Arrays.asList(BsonDocument.parse("{$match: { 'metaMetadata.type' : '" + key + "'}}"));
+				List pipeline = Arrays.asList(BsonDocument.parse("{$match: { 'packageType' : '" + key + "'}}"));
 				if (key.equals("default") || key.equals(this.recordMetadataViewName)) {
 					key = key + "_package";
 				}
@@ -208,7 +208,7 @@ public class MongoStorage implements JsonStorage {
 				BsonDocument
 						.parse("{$lookup: { from: 'tf_obj_meta', localField:'redboxOid', foreignField: 'redboxOid', as: 'tfObj'}}"),
 				BsonDocument
-						.parse("{ $addFields: { 'metadata': { 'redboxOid':  '$redboxOid', 'date_object_created':'$tfObj.date_object_created', 'date_object_modified':'$tfObj.date_object_modified' }}}"),
+						.parse("{ $addFields: { 'metadata': { 'redboxOid':  '$redboxOid', 'packageType':'$tfObj.packageType', 'date_object_created':'$tfObj.date_object_created', 'date_object_modified':'$tfObj.date_object_modified' }}}"),
 				BsonDocument.parse("{ $replaceRoot: { newRoot: '$metadata'}}"));
 		try {
 			mongoDb.createView(this.recordMetadataViewName, this.defaultCollection, pipeline);

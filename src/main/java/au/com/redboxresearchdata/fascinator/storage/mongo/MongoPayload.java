@@ -82,9 +82,7 @@ public class MongoPayload extends GenericPayload {
         doc.append("backend_type", getBackend().getType());
         doc.append("payloadId", getPayloadId());
         doc.append("lastModified", lastModified);
-        System.out.println("Metadta doc now is:");
-        System.out.println(doc.toJson());
-        System.out.println("Adding backend metadata...");
+        
         Document backendMeta = getBackend().getMetadata();
         if (backendMeta != null) {
             doc.append(getBackend().getId(), backendMeta);
