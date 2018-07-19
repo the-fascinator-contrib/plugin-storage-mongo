@@ -499,7 +499,7 @@ public class MongoDigitalObject extends GenericDigitalObject
             metaCol.findOneAndDelete(eq("redboxOid", oid));
         }
     }
-
+    
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getFileList() {
         if (recordMetadata == null) {
