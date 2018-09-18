@@ -24,6 +24,7 @@ import static com.mongodb.client.model.Projections.include;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,7 +44,11 @@ import com.googlecode.fascinator.common.JsonObject;
 import com.googlecode.fascinator.common.JsonSimple;
 import com.googlecode.fascinator.common.JsonSimpleConfig;
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoClientOptions.Builder;
 import com.mongodb.MongoCommandException;
+import com.mongodb.MongoCredential;
+import com.mongodb.ServerAddress;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -154,6 +159,9 @@ public class MongoStorage implements JsonStorage {
 		String host = systemConfig.getString("localhost", "storage", "mongo", "host");
 		int port = systemConfig.getInteger(27017, "storage", "mongo", "port").intValue();
 		String db = systemConfig.getString("redbox", "storage", "mongo", "db");
+		boolean sslEnable = systemConfig.getBoolean(false, "storage", "mongo", "sslEnable");
+		String username = systemConfig.getString(null, "storage", "mongo", "username");
+		String password = systemConfig.getString(null, "storage", "mongo", "password");
 		defaultCollection = systemConfig.getString("default", "storage", "mongo", "defaultCollection");
 		objectMetadataCollectionName = systemConfig.getString("tf_obj_meta", "storage", "mongo", "metadataCollection");
 
@@ -162,7 +170,17 @@ public class MongoStorage implements JsonStorage {
 
 		String payloadBackendName = systemConfig.getString("MONGO", "storage", "mongo", "payload_backend");
 		payloadBackend = MongoDigitalObject.PayloadBackend.valueOf(payloadBackendName);
-		mongoClient = new MongoClient(host, port);
+		Builder optionBuilder = MongoClientOptions.builder().sslEnabled(sslEnable);
+
+		ServerAddress addr = new ServerAddress(new InetSocketAddress(host, port));
+		if (username == null) {
+			mongoClient = new MongoClient(addr, optionBuilder.build());
+		} else {
+			List<MongoCredential> credentialsList = new ArrayList<MongoCredential>();
+			credentialsList.add(MongoCredential.createCredential(username, db, password.toCharArray()));
+			mongoClient = new MongoClient(addr, credentialsList, optionBuilder.build());
+		}
+
 		mongoDb = mongoClient.getDatabase(db);
 
 		createMetadataDocumentsView();
@@ -177,7 +195,7 @@ public class MongoStorage implements JsonStorage {
 
 		JsonObject packageTypes = systemConfig.getObject("portal", "packageTypes");
 		if (packageTypes != null) {
-			
+
 			for (Object keyObject : packageTypes.keySet()) {
 				String key = (String) keyObject;
 				List pipeline = Arrays.asList(BsonDocument.parse("{$match: { 'packageType' : '" + key + "'}}"));
@@ -287,15 +305,16 @@ public class MongoStorage implements JsonStorage {
 		return pagedQuery(collection, filterString, 0, 10, null);
 	}
 
-	public JsonSimple pagedQuery(String collection, String filterString, int startIndex, int rows, String sort) throws IOException {
+	public JsonSimple pagedQuery(String collection, String filterString, int startIndex, int rows, String sort)
+			throws IOException {
 
 		List<BsonDocument> pipeline = Arrays.asList(BsonDocument.parse("{$match:" + filterString + "}"),
 				BsonDocument.parse("{'$group':{'_id': null, 'numFound': {'$sum': 1 }, 'docs':{ '$push':'$$ROOT' }} },"),
 				BsonDocument.parse("{'$project': { 'numFound':1 , 'docs' : {'$slice': ['$docs'," + startIndex + ","
 						+ rows + "] }   }}"));
-		if(sort != null) {
+		if (sort != null) {
 			List<BsonDocument> newpipeline = new ArrayList<BsonDocument>(pipeline);
-			newpipeline.add(1,BsonDocument.parse("{'$sort': {"+sort+"}}"));
+			newpipeline.add(1, BsonDocument.parse("{'$sort': {" + sort + "}}"));
 			pipeline = newpipeline;
 		}
 
