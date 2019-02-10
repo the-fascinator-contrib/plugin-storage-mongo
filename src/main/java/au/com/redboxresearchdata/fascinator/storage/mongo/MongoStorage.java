@@ -54,6 +54,8 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.IndexOptions;
 
 /**
  * <p>
@@ -230,6 +232,14 @@ public class MongoStorage implements JsonStorage {
 				BsonDocument.parse("{ $replaceRoot: { newRoot: '$metadata'}}"));
 		try {
 			mongoDb.createView(this.recordMetadataViewName, this.defaultCollection, pipeline);
+			// create the required indices
+			MongoCollection collection = mongoDb.getCollection(this.defaultCollection);
+			IndexOptions options = new IndexOptions().sparse(true).background(true);
+			collection.createIndex(Indexes.ascending("files.pid"), options);
+			collection.createIndex(Indexes.compoundIndex(Indexes.ascending("files.pid", "files.source.payload.metaMetadata.brandId", "files.source.payload.metaMetadata.type", "files.source.payload.workflow.stage")), options.name("metaViewIndex"));
+			options = new IndexOptions().sparse(true).background(true);
+			collection = mongoDb.getCollection("tf_obj_meta");
+			collection.createIndex(Indexes.ascending("redboxOid"), options);
 		} catch (MongoCommandException e) {
 			// Error code 48 means that the view has already been created
 			if (e.getCode() != 48) {
@@ -307,11 +317,14 @@ public class MongoStorage implements JsonStorage {
 
 	public JsonSimple pagedQuery(String collection, String filterString, int startIndex, int rows, String sort)
 			throws IOException {
-
+		System.out.println("Running paged query on: " + collection + " using: " + filterString + " sort:" + sort );
+		long startStamp = System.currentTimeMillis();
 		List<BsonDocument> pipeline = Arrays.asList(BsonDocument.parse("{$match:" + filterString + "}"),
 				BsonDocument.parse("{'$group':{'_id': null, 'numFound': {'$sum': 1 }, 'docs':{ '$push':'$$ROOT' }} },"),
 				BsonDocument.parse("{'$project': { 'numFound':1 , 'docs' : {'$slice': ['$docs'," + startIndex + ","
 						+ rows + "] }   }}"));
+		System.out.println("Pipeline:");
+		System.out.println(pipeline.toString());
 		if (sort != null) {
 			List<BsonDocument> newpipeline = new ArrayList<BsonDocument>(pipeline);
 			newpipeline.add(1, BsonDocument.parse("{'$sort': {" + sort + "}}"));
@@ -320,6 +333,7 @@ public class MongoStorage implements JsonStorage {
 
 		AggregateIterable<Document> result = this.mongoDb.getCollection(collection).aggregate(pipeline);
 		if (result.first() != null) {
+			System.out.println("Query took: " + (System.currentTimeMillis() - startStamp));
 			return new JsonSimple(result.first().toJson());
 		} else {
 			return new JsonSimple("{\"_id\": null,  \"numFound\": 0,  \"docs\": []}");
@@ -333,7 +347,7 @@ public class MongoStorage implements JsonStorage {
 
 	/**
 	 * Calls Mongo's aggregate function
-	 * 
+	 *
 	 * @param collection
 	 * @param pipeline
 	 * @return
