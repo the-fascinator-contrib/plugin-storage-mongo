@@ -323,15 +323,14 @@ public class MongoStorage implements JsonStorage {
 				BsonDocument.parse("{'$group':{'_id': null, 'numFound': {'$sum': 1 }, 'docs':{ '$push':'$$ROOT' }} },"),
 				BsonDocument.parse("{'$project': { 'numFound':1 , 'docs' : {'$slice': ['$docs'," + startIndex + ","
 						+ rows + "] }   }}"));
-		System.out.println("Pipeline:");
-		System.out.println(pipeline.toString());
 		if (sort != null) {
 			List<BsonDocument> newpipeline = new ArrayList<BsonDocument>(pipeline);
 			newpipeline.add(1, BsonDocument.parse("{'$sort': {" + sort + "}}"));
 			pipeline = newpipeline;
 		}
-
-		AggregateIterable<Document> result = this.mongoDb.getCollection(collection).aggregate(pipeline);
+		System.out.println("Pipeline:");
+		System.out.println(pipeline.toString());
+		AggregateIterable<Document> result = this.mongoDb.getCollection(collection).aggregate(pipeline).allowDiskUse(true);
 		if (result.first() != null) {
 			System.out.println("Query took: " + (System.currentTimeMillis() - startStamp));
 			return new JsonSimple(result.first().toJson());
