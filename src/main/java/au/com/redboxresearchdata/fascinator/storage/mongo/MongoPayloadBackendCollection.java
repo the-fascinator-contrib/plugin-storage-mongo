@@ -17,18 +17,19 @@
  ******************************************************************************/
 package au.com.redboxresearchdata.fascinator.storage.mongo;
 
-import java.io.BufferedReader;
+import java.io.*;
+
 import com.google.gson.Gson;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
+
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
 import org.bson.Document;
 
 import com.googlecode.fascinator.api.storage.StorageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MongoPayloadBackendCollection
@@ -38,6 +39,7 @@ import com.googlecode.fascinator.api.storage.StorageException;
  */
 public class MongoPayloadBackendCollection implements MongoPayloadBackend {
 
+    private static Logger log = LoggerFactory.getLogger(MongoPayloadBackendCollection.class);
     static String SOURCE_FIELD = "source";
     static String PAYLOAD_FIELD = "payload";
     static String METADATA_FIELD = "metadata";
@@ -71,12 +73,12 @@ public class MongoPayloadBackendCollection implements MongoPayloadBackend {
     @Override
     public void create(InputStream source, Document metadata)
             throws StorageException {
-        System.out.println("------------- Creating PID: " + pid);
+        log.debug("------------- Creating PID: " + pid);
         try {
             Document sourceDoc = getDocumentFromJsonStream(source);
             if (sourceDoc == null) {
                 if (obj.existsInStorage()) {
-                    System.out.println(
+                    log.debug(
                             "Swallowing error.... there was an attempt to update a payload using empty data.");
                 } else {
                     throw new StorageException(
@@ -87,7 +89,7 @@ public class MongoPayloadBackendCollection implements MongoPayloadBackend {
                 mainDoc.put(METADATA_FIELD, metadata);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Payload create failed:", e);
             throw new StorageException(e);
         }
     }
@@ -98,15 +100,14 @@ public class MongoPayloadBackendCollection implements MongoPayloadBackend {
             StringWriter writer = new StringWriter();
             IOUtils.copy(source, writer, "UTF-8");
             String jsonStr = writer.toString();
-            System.out.println("Converint to Document:");
-            System.out.println(jsonStr);
+            log.debug("Converint to Document:");
+            log.debug(jsonStr);
             Gson gson = new Gson();
             Document document = new Document();
             document = (Document) gson.fromJson(jsonStr, document.getClass());
             return document;
         } catch (Exception e) {
-            System.out.println("Failed to create document from JSON stream:");
-            e.printStackTrace();
+            log.error("Failed to create document from JSON stream:", e);
             throw e;
         }
     }
@@ -122,8 +123,12 @@ public class MongoPayloadBackendCollection implements MongoPayloadBackend {
 
     private byte[] getBytes() {
         String s = getAsString();
-        System.out.println("Get as string: " + s);
-        return s.getBytes();
+        log.debug("Get as string: " + s);
+        try {
+            return s.getBytes(StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            return s.getBytes();
+        }
     }
 
     public String getAsString() {
